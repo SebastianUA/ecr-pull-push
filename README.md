@@ -39,7 +39,7 @@ Date: Wed, 17 Nov 2021 11:06:47 GMT
 Content-Type: text/plain; charset=utf-8
 Transfer-Encoding: chunked
 
-{"name":"accounts","tags":["943bf60acceb327ee85717d2b52cfd97374f4340","ade31de1df53b7c96575f6f27bec17c9f7702cb8"]}
+{"name":"repo-name","tags":["943bf60acceb327ee85717d2b52cfd97374f4340","ade31de1df53b7c96575f6f27bec17c9f7702cb8"]}
 ```
 So, you can see that if you add some headers, Amazon can allow you to use AWS ECR service.
 Based on this point, I developed `ecr-containers.py` Python script. This script allow you to `pull` images from AWS ECR.

@@ -42,26 +42,26 @@ Transfer-Encoding: chunked
 {"name":"repo-name","tags":["943bf60acceb327ee85717d2b52cfd97374f4340","ade31de1df53b7c96575f6f27bec17c9f7702cb8"]}
 ```
 So, you can see that if you add some headers, Amazon can allow you to use AWS ECR service.
-Based on this point, I developed `ecr-containers.py` Python script. This script allow you to `pull` images from AWS ECR.
+Based on this point, I developed `ecr-pull.py` Python script. This script allow you to `pull` images from AWS ECR.
 I planned to add `push` method as well soon.
 
 ## Install
 - Install python
 - Install pip and after it, all packages from `requirements.txt` file.
-- Download the `ecr-containers.py` to your laptop and set `chmod +x ecr-containers.py` on it.
+- Download the `ecr-pull.py` to your laptop and set `chmod +x ecr-pull.py` on it.
 
 ## Usage
 
 Simple run looks like the next one:
 ```shell
-$ python3 ecr-containers.py --profile=default
+$ python3 ecr-pull.py --profile=default
 config_filename:  2a5d611b6675bbcb15fea6050fdf5af2d974494511967e1ccd816efbe95fa348.json
 manifest:  [{'Config': '2a5d611b6675bbcb15fea6050fdf5af2d974494511967e1ccd816efbe95fa348.json', 'RepoTags': [], 'Layers': ['339de151aab4bc06eed8409daae147c408478cb538dacb90cc63f19ad4eba80b/layer.tar', 'c79c496f1543a6cf36a79305de7c709ea55c16b63ea86219c4b98c334b70488d/layer.tar', 'a5382bad4f98c8f742d943e2bd6930626b06af081c57062e06a501d449a4c472/layer.tar', '348e701aca2b0acab9fab3daaa10980e5507b8e55334671f503d1d5f5ef739a5/layer.tar', '965b2a30aa9c5ffea05d772b418c428cde9fa3f85faf37b2b66b719593f4c7b6/layer.tar', '9ee6edf857abe493670c386faa46127a9decea128da3fcafe25015afa8f6b9ef/layer.tar', '75f33f1b8076396b9a688c579ffb6ee4e7d7c83e94a9ba4d15b97a7efb118db7/layer.tar', 'a79e84406bd9b1f9c48e60589691a9ef807c7416cf1b2885eafc95fbbd3bbd8c/layer.tar', 'e5279c73940e27e2d0e32d8c288c32a795eeb12d4bf876e27067a7a49d032d6c/layer.tar', 'b088ed07f0856dbc5d7451536d3379a8c0dee79ddf98f7bdcef98e37549669fa/layer.tar', '09c3905aed6a2dd924c4a3fed0802d3cc191cdfc317c960ea9c43c9f8a4379c5/layer.tar', '7486d5d0bd29e293ed034751b9743c3f30405aa4746f353151ed44e2d827fc76/layer.tar']}]
 --- 3.93 seconds ---
 ```
 *NOTE:* You can use additional args and to get help, use:
 ```shell
-$ python3 ecr-containers.py -h
+$ python3 ecr-pull.py -h
 usage: python3 script_name.py {ARGS}
 
 optional arguments:
@@ -83,9 +83,9 @@ optional arguments:
                         Set ECR repo name
   --ecr-repo-tag ECR_REPO_TAG, -repo-tag ECR_REPO_TAG
                         Set ECR repo tag
-  --ec2 AWS_EC2         Set ec2 usage
 
 created by Vitalii Natarov
+
 ```
 
 After, we must load the downloaded image:
@@ -106,7 +106,7 @@ eb9876ca8f14: Loading layer [==================================================>
 Loaded image ID: sha256:ada32a4765be57eb1049808ebdbc7b8b6108847375383a21ffe004f3fffc3757
 ```
 
-## Terrafrom usage
+## Terraform usage
 In the `examples` folder located the Terraform files to create AWS Route53 CNAME to AWS ECR registry. Also, the EC2 modules to create simple EC2 machine to test how the CNAME will be worked.
 
 

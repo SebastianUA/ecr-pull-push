@@ -47,7 +47,7 @@ I planned to add `push` method as well soon.
 
 ## Install
 - Install python
-- Install pip and after it, all packages from `requirements.txt` file.
+- Install pip and after it, all packages from `requirements.txt` file: `python3 -m pip install -r requirements.txt` or `pip3 install -r requirements.txt`
 - Download the `ecr-pull.py` to your laptop and set `chmod +x ecr-pull.py` on it.
 
 ## Usage
@@ -64,7 +64,7 @@ manifest:  [{'Config': '2a5d611b6675bbcb15fea6050fdf5af2d974494511967e1ccd816efb
 $ python3 ecr-pull.py -h
 usage: python3 script_name.py {ARGS}
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
   --bclient BOTO3_CLIENT
@@ -79,13 +79,10 @@ optional arguments:
   --registry-url REGISTRY_URL, --url REGISTRY_URL
                         Set Registry URL
   --ecr-url ECR_URL     Set URL from ECR registry
-  --ecr-repo ECR_REPO, -repo ECR_REPO
+  --ecr-repo ECR_REPO, --repo ECR_REPO
                         Set ECR repo name
-  --ecr-repo-tag ECR_REPO_TAG, -repo-tag ECR_REPO_TAG
+  --ecr-repo-tag ECR_REPO_TAG, --repo-tag ECR_REPO_TAG
                         Set ECR repo tag
-
-created by Vitalii Natarov
-
 ```
 
 After, we must load the downloaded image:
@@ -108,6 +105,14 @@ Loaded image ID: sha256:ada32a4765be57eb1049808ebdbc7b8b6108847375383a21ffe004f3
 
 ## Terraform usage
 In the `examples` folder located the Terraform files to create AWS Route53 CNAME to AWS ECR registry. Also, the EC2 modules to create simple EC2 machine to test how the CNAME will be worked.
+
+## Helm chart usage
+In the examples folder located the Dockerfile to use ecr-pull & ecr-push. 
+*NOTE*: This file has a developing state.
+
+## Helm chart usage
+In the examples folder located the heml-chart to deploy ecr-pull & ecr-push. 
+*NOTE*: This helm-chart is under testing and has a developing state.
 
 
 ## Authors

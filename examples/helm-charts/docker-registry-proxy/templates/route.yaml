@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Route
+metadata:
+  name: aws-registry-proxy-route
+  namespace: docker-registry
+  labels:
+    app: aws-registry-proxy
+spec:
+  host: registry.shrd.ourdomain.net
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: aws-registry-proxy-svc
+  wildcardPolicy: None

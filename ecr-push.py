@@ -9,12 +9,13 @@ import shutil
 import tarfile
 import time
 import urllib
+import hashlib
 from tempfile import mkdtemp
 
 import boto3
 import botocore
 import botocore.session
-from urllib3 import PoolManager
+import urllib3
 from botocore.config import Config
 
 # Initialize Logger
@@ -106,10 +107,7 @@ def ecr_connector(aws_settings):
 
 
 def get_ecr_repos(aws_settings):
-    if ('ec2_host' in aws_settings) and (aws_settings['ec2_host']):
-        ecr = ec2_connector(aws_settings)
-    else:
-        ecr = ecr_connector(aws_settings)
+    ecr = ecr_connector(aws_settings)
 
     if ecr:
         try:
@@ -119,8 +117,7 @@ def get_ecr_repos(aws_settings):
             print("The repos:\n {}!".format(repos))
         except botocore.exceptions.ClientError as err:
             error_code = str(err)
-            logger.error('ERROR (403 Forbidden Access - get_ecr_repos): \t\n{0}. '.format(error_code))
-            exit(-1)
+            logger.error('ERROR: {0}. Forbidden Access!'.format(error_code))
     else:
         exit(-1)
 
@@ -130,10 +127,7 @@ def get_ecr_repos(aws_settings):
 def get_ecr_repo(aws_settings, ecr_repo):
     ecr_repo_status = False
 
-    if ('ec2_host' in aws_settings) and (aws_settings['ec2_host']):
-        ecr = ec2_connector(aws_settings)
-    else:
-        ecr = ecr_connector(aws_settings)
+    ecr = ecr_connector(aws_settings)
 
     if ecr:
         try:
@@ -143,10 +137,8 @@ def get_ecr_repo(aws_settings, ecr_repo):
             return ecr_repo_status
         except botocore.exceptions.ClientError as err:
             error_code = str(err)
-            logger.error('ERROR (403 Forbidden Access - get_ecr_repo): \t\n{0}. '.format(error_code))
-            logger.error('Check your credentials (profile, role + role session))')
+            logger.error('ERROR: {0}. Forbidden Access!'.format(error_code))
             ecr_repo_status = False
-            exit(-1)
             return ecr_repo_status
     else:
         exit(-1)
@@ -157,14 +149,10 @@ def get_ecr_repo(aws_settings, ecr_repo):
 def get_authorization_token(aws_settings, ecr_repo):
     global auth_token
 
-    if ('ec2_host' in aws_settings) and (aws_settings['ec2_host']):
-        ecr = ec2_connector(aws_settings)
-    else:
-        ecr = ecr_connector(aws_settings)
+    ecr = ecr_connector(aws_settings)
 
     ecr_repo = get_ecr_repo(aws_settings, ecr_repo)
     ecr_repo_id = ecr_repo['repositories'][0]['registryId']
-
     if ecr:
         response = ecr.get_authorization_token(registryIds=[ecr_repo_id])
         if response['ResponseMetadata']['HTTPStatusCode'] == 200:
@@ -179,43 +167,28 @@ def get_authorization_token(aws_settings, ecr_repo):
     return auth_token
 
 
-def http_request(method='GET', url='', h=None, retries=False, timeout=60):
+def http_request(method='GET', url='', h=None, retries=False, timeout=30):
     if h is None:
         h = {}
-
-    http = PoolManager(
-        num_pools=50,
-        maxsize=10,
-        block=True,
-        cert_reqs='CERT_NONE',
-        assert_hostname=url,
-        server_hostname=""
-       )
+    http = urllib3.PoolManager()
 
     response = http.request(method=method,
                             url=url,
                             headers=h,
                             retries=retries,
-                            timeout=timeout,
-                            assert_same_host=True)
-
+                            timeout=timeout)
     if response.status == 200:
         # print("response: ", response.data.decode('utf-8'))
         logger.info('INFO: Successfully.....')
         return response
     elif response.status == 307:
-        pass
         # logger.error('HTTP 307 Temporary Redirect redirect status response')
-        return response
-    elif response.status == 400:
-        logger.error('ERROR: {}'.format(response.data.decode('utf-8')))
         return response
     elif response.status == 401:
         logger.error('ERROR: Please authorize, the issue: \n\t {}'.format(response.data.decode('utf-8')))
         return response
     elif response.status == 404:
-        logger.error('ERROR (404 page not found): \t\n Repo or tag missed!')
-        exit(1)
+        logger.error('ERROR: 404 page not found')
         return response
     else:
         logger.error('FAILURE: Got an error: \n\t {}'.format(response.data.decode('utf-8')))
@@ -229,95 +202,69 @@ def urllib_request_urlopen(url):
     return response
 
 
-def downloading_layer(cache_dir=CACHE_DIR, layer_url=None, out_path='/', h=None):
-    """
-    Get a layer in a compressed format, and saves it locally (unzipped).
-    The tar name is expected to contain a hash, thus to be cacheable.
-    """
+def compute_digest(filename):
+    sha256_hash = hashlib.sha256()
+    with open(filename, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return "sha256:" + sha256_hash.hexdigest()
 
+
+def ecr_push(cname_url, ecr_repo, ecr_tag="latest", h=None):
     if h is None:
         h = {}
 
-    cache_name = cache_dir + layer_url.split("/")[6].replace(':', '_')
-    # repo_name = layer_url.split("/")[4]
-
-    response_headers = {}
-    if not os.path.exists(cache_name):
-        response = http_request(method='GET', url=layer_url, h=h, retries=False, timeout=30)
-        for key, val in response.headers.iteritems():
-            d = {key: val}
-            response_headers.update(d)
-
-        layer_location = response_headers['Location']
-        layer_location_data = urllib_request_urlopen(layer_location)
-
-        with open(cache_name, mode='wb') as localfile:
-            localfile.write(layer_location_data)
-            shutil.move(cache_name, cache_name)
-
-    os.makedirs(out_path[:out_path.rfind("/")], exist_ok=True)
-    shutil.copyfile(cache_name, out_path)
-
-    return downloading_layer
-
-
-def ecr_pull(cname_url, ecr_repo, ecr_tag="latest", h=None):
-    if h is None:
-        headers = {}
-    else:
-        headers = h
 
     try:
-        manifests_url = cname_url + '/v2/{0}/manifests/{1}'.format(ecr_repo, ecr_tag)
+        print("sha256: ", compute_digest("./docker-push.py"))
 
-        response = http_request('GET', manifests_url, h)
-        web_manifest = json.loads(response.data.decode('utf-8'))
-        config_digest = web_manifest['config']['digest']
-
-        # ------------------------------------------------------------------------
-        config = cname_url + '/v2/{0}/blobs/{1}'.format(ecr_repo, config_digest)
-        response = http_request('GET', config, h)
-        # print("response::::::: ", response.headers)
-
-        response_headers = {}
-        for key, val in response.headers.iteritems():
-            d = {key: val}
-            response_headers.update(d)
-
-        config_location = response_headers['Location']
-        config_location_file = urllib_request_urlopen(config_location).decode('utf-8')
-
-        config_filename = config_digest.split(':')[1] + '.json'
-        # print("config_filename::::::: ", config_filename)
-
-        with open(temp_dir + '/' + config_filename, 'w') as outfile:
-            json.dump(json.loads(config_location_file), outfile)
+        # manifests_url = cname_url + '/v2/{0}/manifests/{1}'.format(ecr_repo, ecr_tag)
+        # response = http_request('GET', manifests_url, h)
+        # web_manifest = json.loads(response.data.decode('utf-8'))
+        # config_digest = web_manifest['config']['digest']
+        #
+        # # ------------------------------------------------------------------------
+        # config = cname_url + '/v2/{0}/blobs/{1}'.format(ecr_repo, config_digest)
+        # response = http_request('GET', config, h)
+        #
+        # response_headers = {}
+        # for key, val in response.headers.iteritems():
+        #     d = {key: val}
+        #     response_headers.update(d)
+        #
+        # config_location = response_headers['Location']
+        # config_location_file = urllib_request_urlopen(config_location).decode('utf-8')
+        #
+        # config_filename = config_digest.split(':')[1] + '.json'
+        # with open(temp_dir + '/' + config_filename, 'w') as outfile:
+        #     json.dump(json.loads(config_location_file), outfile)
 
         # ------------------------------------------------------------------------
-        layer_path_l = []
-        for layer in web_manifest['layers']:
-            layer_url = cname_url + '/v2/{0}/blobs/{1}'.format(ecr_repo, layer['digest'])
-            path = layer['digest'].split(':')[-1] + "/layer.tar"
-            out_path = temp_dir + '/' + path
-
-            downloading_layer(cache_dir=CACHE_DIR, layer_url=layer_url, out_path=out_path, h=headers)
-            layer_path_l.append(path)
-
-        manifest = [{"Config": config_filename, "RepoTags": [], "Layers": layer_path_l}]
-        print("config_filename: ", config_filename)
-        print("manifest: ", manifest)
-        with open(temp_dir + '/' + 'manifest.json', 'w') as outfile:
-            json.dump(manifest, outfile)
-
-        with tarfile.open(ecr_tag, "w") as tar_out:
-            os.chdir(temp_dir)
-            tar_out.add(".")
+        # layer_path_l = []
+        # for layer in web_manifest['layers']:
+        #     layer_url = cname_url + '/v2/{0}/blobs/{1}'.format(ecr_repo, layer['digest'])
+        #     path = layer['digest'].split(':')[-1] + "/layer.tar"
+        #     out_path = temp_dir + '/' + path
+        #
+        #     downloading_layer(cache_dir=CACHE_DIR, layer_url=layer_url, out_path=out_path, h=h)
+        #     layer_path_l.append(path)
+        #
+        # manifest = [{"Config": config_filename, "RepoTags": [], "Layers": layer_path_l}]
+        # print("config_filename: ", config_filename)
+        # print("manifest: ", manifest)
+        # with open(temp_dir + '/' + 'manifest.json', 'w') as outfile:
+        #     json.dump(manifest, outfile)
+        #
+        # with tarfile.open(ecr_tag, "w") as tar_out:
+        #     os.chdir(temp_dir)
+        #     tar_out.add(".")
 
     except Exception as e:
         logger.error('ERROR: {0}'.format(str(e)))
+        print(e)
         exit(1)
 
-    return ecr_pull
+    return ecr_push
 
 
 if __name__ == '__main__':
@@ -328,7 +275,7 @@ if __name__ == '__main__':
                                      prefix_chars='--/',
                                      epilog='''created by Vitalii Natarov'''
                                      )
-    parser.add_argument('--version', action='version', version='v0.5.7')
+    parser.add_argument('--version', action='version', version='v0.2.0')
     parser.add_argument('--bclient', dest='boto3_client', help='Set boto3 client', default='ecr')
     parser.add_argument('--region', dest='region', help='Set AWS region for boto3', default='us-east-1')
     parser.add_argument('--pname', '--profile', dest='profile_name', help='Set profile name of AWS',
@@ -341,10 +288,10 @@ if __name__ == '__main__':
                         default="https://docker-ecr.internal.vnatarov.io")
     parser.add_argument('--ecr-url', dest='ecr_url', help='Set URL from ECR registry',
                         default="XXXXXXXXXXXXXXX.dkr.ecr.us-east-1.amazonaws.com")
-    parser.add_argument('--ecr-repo', '--repo', dest='ecr_repo', help='Set ECR repo name',
-                        default="alpine")
-    parser.add_argument('--ecr-repo-tag', '--repo-tag', dest='ecr_repo_tag', help='Set ECR repo tag',
-                        default="3.12.1")
+    parser.add_argument('--ecr-repo', '-repo', dest='ecr_repo', help='Set ECR repo name',
+                        default="accounts")
+    parser.add_argument('--ecr-repo-tag', '-repo-tag', dest='ecr_repo_tag', help='Set ECR repo tag',
+                        default="test")
 
     results = parser.parse_args()
 
@@ -373,13 +320,13 @@ if __name__ == '__main__':
         authorization_token = get_authorization_token(aws_auth, ecr_repo_name)
         headers = {
             'Host': str(ecr_url_host),
-            'Accept': 'application/vnd.docker.distribution.manifest.v2+json',
+            'Accept': 'text/plain',
             'X-Forwarded-Proto': 'https',
             'X-Forwarded-For': '127.0.0.1',
             'X-Real-IP': '66.66.66.66',
             'Authorization': 'Basic {}'.format(str(authorization_token))
         }
-        ecr_pull(registry_url, ecr_repo_name, ecr_repo_tag, headers)
+        ecr_push(aws_auth, registry_url, ecr_repo_name, ecr_repo_tag, headers)
     finally:
         shutil.rmtree(temp_dir)
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 import os
 
 from setuptools import setup, find_packages
@@ -27,14 +28,14 @@ setup(
     author="Vitalii Natarov",
     # Email
     author_email="vitaliy.natarov@yahoo.com, solo.metalisebastian@gmail.com",
-    version="0.2.0",
+    version="0.5.7",
     # License
     license="Proprietary License",
     packages=find_packages("."),
     # List of keyword arguments
     keywords=[],
     # List of packages to install with this one
-    install_requires=["flask", "six"],
+    install_requires=["boto3", "botocore"],
     tests_require=["mock", "pytest"],
     # https://pypi.org/classifiers/
     classifiers=[

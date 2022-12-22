@@ -1,0 +1,52 @@
+# Creates aws registry credentials for the first time
+# https://medium.com/@xynova/keeping-aws-registry-pull-credentials-fresh-in-kubernetes-2d123f581ca6
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aws-registry-credential-job
+  namespace: docker-registry
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      serviceAccountName: operator
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      volumes:
+      - name: config-tpl
+        configMap:
+          defaultMode: 420
+          name: aws-registry-proxy-tpl
+      containers:
+      - name: kubectl
+        imagePullPolicy: Always
+        image: xynova/aws-kubectl:latest
+        volumeMounts:
+        - mountPath: /tmp/tpl
+          name: config-tpl
+        command:
+        - "/bin/sh"
+        - "-c"
+        - |
+          
+          REGISTRY_ID=<XXXXXXXXXXXX>
+          DOCKER_USER=AWS
+          DOCKER_PASSWORD=`aws ecr get-login --region ap-southeast-2 --registry-ids $REGISTRY_ID | cut -d' ' -f6`
+          export DOCKER_REGISTRY_SERVER=https://$REGISTRY_ID.dkr.ecr.ap-southeast-2.amazonaws.com
+          export REGISTRY_BASICAUTH="$DOCKER_USER:$DOCKER_PASSWORD" 
+          # UPDATE pull-secrets
+          kubectl create secret docker-registry aws-registry --dry-run --validate=false -o yaml \
+          --docker-server=$DOCKER_REGISTRY_SERVER \
+          --docker-username=$DOCKER_USER \
+          --docker-password=$DOCKER_PASSWORD \
+          --docker-email=kube@shrd.local \
+          | kubectl apply --validate=false -f -
+          # Create new config template
+          gomplate --file /tmp/tpl/registry.conf > /tmp/registry.conf
+          # UPDATE aws-registry-proxy-config with fresh docker registry credentials
+          kubectl create configmap aws-registry-proxy-config --dry-run --validate=false -o yaml \
+          --from-file=/tmp/registry.conf \
+          | kubectl apply --validate=false -f -  
+          # Bump the proxy so that it picks the new config
+          PATCH_TRIGGER=`printf '{ "spec": { "template":{ "metadata": { "labels" : { "triggered": "(DATE)"}}}}}' | sed "s/(DATE)/$(date +%Y-%m-%d-%H-%M-%S)/"`
+          kubectl patch deployment aws-registry-proxy -p "$PATCH_TRIGGER"

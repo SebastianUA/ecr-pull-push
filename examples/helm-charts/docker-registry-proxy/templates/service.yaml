@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "docker-registry-proxy.fullname" . }}
+  namespace: docker-registry
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "docker-registry-proxy.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }} # 8080
+      targetPort: http # app
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "docker-registry-proxy.selectorLabels" . | nindent 4 }}
